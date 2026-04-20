@@ -1,19 +1,14 @@
-# Databricks Asset Bundle — deploy a multi-task Job (Lakeflow Jobs / Workflows UI).
-# Prerequisites: Databricks CLI (`pip install databricks-cli`) authenticated to your workspace.
+# Databricks Asset Bundle — deploy a serverless multi-task Job
+# (Lakeflow Jobs / Workflows UI).
+# Prerequisites: Databricks CLI authenticated to your workspace.
 #
 # Deploy:  databricks bundle deploy
 # Run:     databricks bundle run orders_medallion
-#
-# Override cluster (recommended for Free/Community): create databricks.override.yml or pass:
-#   databricks bundle deploy --var="cluster_id=YOUR_EXISTING_CLUSTER_ID"
 #
 bundle:
   name: orders-demo
 
 variables:
-  cluster_id:
-    description: Optional existing all-purpose or jobs cluster ID (skips job_cluster when set)
-    default: ""
   bronze_schema:
     description: Bronze schema for raw landing tables
     default: "orders_bronze"
@@ -31,7 +26,6 @@ resources:
       max_concurrent_runs: 1
       tasks:
         - task_key: silver_pyspark
-          job_cluster_key: shared
           spark_python_task:
             python_file: ./pipeline/run_silver_job.py
             parameters:
@@ -39,10 +33,10 @@ resources:
               - ${var.bronze_schema}
               - --silver-schema
               - ${var.silver_schema}
+          environment_key: default
         - task_key: gold_pyspark
           depends_on:
             - task_key: silver_pyspark
-          job_cluster_key: shared
           spark_python_task:
             python_file: ./pipeline/run_gold_job.py
             parameters:
@@ -50,15 +44,11 @@ resources:
               - ${var.silver_schema}
               - --gold-schema
               - ${var.gold_schema}
-
-      job_clusters:
-        - job_cluster_key: shared
-          new_cluster:
-            spark_version: 15.4.x-scala2.12
-            node_type_id: m5.large
-            num_workers: 1
-            spark_conf:
-              spark.databricks.delta.preview.enabled: "true"
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "2"
 
 targets:
   dev:

@@ -62,23 +62,24 @@ def run_gold(
     )
 
     fact = (
-        oi.join(so, "order_id")
-        .join(sp, "product_id")
+        oi.alias("oi")
+        .join(so.alias("o"), "order_id")
+        .join(sp.alias("p"), "product_id")
         .select(
-            F.col("order_item_id"),
-            F.col("order_id"),
-            F.col("customer_id"),
-            F.col("product_id"),
-            F.col("sku"),
-            F.col("product_name"),
-            F.col("category"),
-            F.col("order_date"),
-            F.date_trunc("month", F.col("order_date")).alias("order_month"),
-            F.col("quantity"),
-            F.col("unit_price"),
-            F.col("line_total"),
-            F.col("line_status"),
-            F.col("status_updated_at"),
+            F.col("oi.order_item_id").alias("order_item_id"),
+            F.col("oi.order_id").alias("order_id"),
+            F.col("o.customer_id").alias("customer_id"),
+            F.col("oi.product_id").alias("product_id"),
+            F.col("p.sku").alias("sku"),
+            F.col("p.product_name").alias("product_name"),
+            F.col("p.category").alias("category"),
+            F.col("o.order_date").alias("order_date"),
+            F.date_trunc("month", F.col("o.order_date")).alias("order_month"),
+            F.col("oi.quantity").alias("quantity"),
+            F.col("oi.unit_price").alias("unit_price"),
+            F.col("oi.line_total").alias("line_total"),
+            F.col("oi.line_status").alias("line_status"),
+            F.col("oi.status_updated_at").alias("status_updated_at"),
         )
     )
 
