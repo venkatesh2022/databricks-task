@@ -9,6 +9,9 @@ bundle:
   name: orders-demo
 
 variables:
+  catalog:
+    description: Unity Catalog for Bronze, Silver, and Gold objects
+    default: "dbricks_task"
   bronze_schema:
     description: Bronze schema for raw landing tables
     default: "orders_bronze"
@@ -29,6 +32,8 @@ resources:
           spark_python_task:
             python_file: ./pipeline/run_silver_job.py
             parameters:
+              - --catalog
+              - ${var.catalog}
               - --bronze-schema
               - ${var.bronze_schema}
               - --silver-schema
@@ -40,6 +45,8 @@ resources:
           spark_python_task:
             python_file: ./pipeline/run_gold_job.py
             parameters:
+              - --catalog
+              - ${var.catalog}
               - --silver-schema
               - ${var.silver_schema}
               - --gold-schema

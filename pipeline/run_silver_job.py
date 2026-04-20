@@ -18,6 +18,7 @@ except ModuleNotFoundError:
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--catalog", default="dbricks_task")
     parser.add_argument("--bronze-schema", default="orders_bronze")
     parser.add_argument("--silver-schema", default="orders_silver")
     return parser.parse_args()
@@ -28,6 +29,7 @@ if __name__ == "__main__":
     spark = SparkSession.builder.getOrCreate()
     run_silver(
         spark,
+        catalog=args.catalog,
         bronze_schema=args.bronze_schema,
         silver_schema=args.silver_schema,
     )
