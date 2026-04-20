@@ -1,0 +1,27 @@
+Use any AI tool of your choice and databricks free edition
+
+You can use a simple demo dataset of your choice.
+
+Task:
+
+Design a data model for this scenario: Customers place orders. 
+Each order will have multiple line items for different products, quantities, and statuses.
+When the complete order is delivered, it is marked as Completed. Also, track the status at the item level.
+
+Task 1:
+Create a model for the above system and define the entity-relationship between the objects.
+
+Task 2:
+Provide queries to find the most sold product in the last month.
+
+Additional Instructions:
+
+Design the data model and create a logical architecture for it.
+Build a SQL query for the "most sold product in the last month" (Please be prepared to explain your query during the interview).
+Do NOT create any additional documentation/slides demonstrating your knowledge of Databricks.
+Live Interview:
+
+The live interview will typically consist of consulting, architecture, and technical questions. 
+The technical questions will broadly cover Databricks, PySpark, Unity Catalog, Batch versus Streaming, Medallion architecture, various join conditions, various data formats, and cluster architecture. The pre-work can serve as an aid during this interview.
+
+ 

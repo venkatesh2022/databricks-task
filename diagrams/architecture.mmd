@@ -1,0 +1,48 @@
+flowchart TB
+    classDef src     fill:#f4f4f4,stroke:#555,color:#222
+    classDef bronze  fill:#cd7f32,stroke:#7a4c1e,color:#fff
+    classDef silver  fill:#c0c0c0,stroke:#555,color:#222
+    classDef gold    fill:#ffd700,stroke:#8a7400,color:#222
+    classDef cons    fill:#d4edda,stroke:#155724,color:#155724
+
+    SRC["Source<br/>CSV / OLTP feed"]:::src
+
+    subgraph BRONZE["Bronze — Raw Landing"]
+        B1["bronze_customers"]:::bronze
+        B2["bronze_products"]:::bronze
+        B3["bronze_orders"]:::bronze
+        B4["bronze_order_items"]:::bronze
+    end
+
+    subgraph SILVER["Silver — Typed + Clean"]
+        S1["silver_customers"]:::silver
+        S2["silver_products"]:::silver
+        S3["silver_orders"]:::silver
+        S4["silver_order_items"]:::silver
+    end
+
+    subgraph GOLD["Gold — Business Marts"]
+        direction TB
+        subgraph DIMFACT["Dims + Atomic Fact"]
+            G1["gold_dim_customer"]:::gold
+            G2["gold_dim_product"]:::gold
+            G3["gold_fact_order_items"]:::gold
+            G4["gold_vw_order_status<br/>(derived)"]:::gold
+        end
+        subgraph AGG["Pre-aggregated Sales Marts"]
+            A1["gold_product_daily_sales"]:::gold
+            A2["gold_product_weekly_sales"]:::gold
+            A3["gold_product_monthly_sales"]:::gold
+        end
+        G3 --> A1
+        G3 --> A2
+        G3 --> A3
+    end
+
+    subgraph CONSUME["Consumers"]
+        C1["BI / Dashboards"]:::cons
+        C2["Analyst SQL<br/>(most-sold query)"]:::cons
+        C3["ML / Forecasting"]:::cons
+    end
+
+    SRC --> BRONZE --> SILVER --> GOLD --> CONSUME

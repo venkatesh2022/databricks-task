@@ -1,0 +1,40 @@
+erDiagram
+    CUSTOMER ||--o{ ORDER        : "places"
+    ORDER    ||--|{ ORDER_ITEM   : "contains"
+    PRODUCT  ||--o{ ORDER_ITEM   : "referenced by"
+
+    CUSTOMER {
+        BIGINT    customer_id PK
+        STRING    first_name
+        STRING    last_name
+        STRING    email        UK
+        STRING    phone
+        TIMESTAMP created_at
+    }
+
+    PRODUCT {
+        BIGINT         product_id PK
+        STRING         sku        UK
+        STRING         product_name
+        STRING         category
+        DECIMAL_10_2   unit_price
+        TIMESTAMP      created_at
+    }
+
+    ORDER {
+        BIGINT    order_id     PK
+        BIGINT    customer_id  FK
+        TIMESTAMP order_date
+        STRING    shipping_address
+    }
+
+    ORDER_ITEM {
+        BIGINT         order_item_id     PK
+        BIGINT         order_id          FK
+        BIGINT         product_id        FK
+        INT            quantity
+        DECIMAL_10_2   unit_price
+        DECIMAL_12_2   line_total
+        STRING         line_status
+        TIMESTAMP      status_updated_at
+    }
