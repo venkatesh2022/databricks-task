@@ -22,7 +22,7 @@ variables:
 resources:
   jobs:
     orders_medallion:
-      name: "${bundle.name} — Silver & Gold (PySpark)"
+      name: "Silver & Gold Pipeline"
       max_concurrent_runs: 1
       tasks:
         - task_key: silver_pyspark
@@ -48,9 +48,11 @@ resources:
       environments:
         - environment_key: default
           spec:
-            environment_version: "2"
+            environment_version: "5"
 
 targets:
   dev:
-    mode: development
+    workspace:
+      host: dbc-6269c81d-f369.cloud.databricks.com
+    # mode: development
     default: true

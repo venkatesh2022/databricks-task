@@ -7,16 +7,13 @@ Prerequisite: Silver tables exist in the Silver schema (run `run_silver_job.py` 
 from __future__ import annotations
 
 import argparse
-import os
-import sys
 
 from pyspark.sql import SparkSession
 
-_ROOT = os.path.dirname(os.path.abspath(__file__))
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
-
-from transforms import run_gold  # noqa: E402
+try:
+    from pipeline.transforms import run_gold
+except ModuleNotFoundError:
+    from transforms import run_gold
 
 
 def _parse_args() -> argparse.Namespace:
