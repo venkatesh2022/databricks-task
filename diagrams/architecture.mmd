@@ -7,32 +7,32 @@ flowchart TB
 
     SRC["Source<br/>CSV / OLTP feed"]:::src
 
-    subgraph BRONZE["Bronze — Raw Landing"]
-        B1["bronze_customers"]:::bronze
-        B2["bronze_products"]:::bronze
-        B3["bronze_orders"]:::bronze
-        B4["bronze_order_items"]:::bronze
+    subgraph BRONZE["Bronze — Raw Landing<br/>schema: orders_bronze"]
+        B1["orders_bronze.bronze_customers"]:::bronze
+        B2["orders_bronze.bronze_products"]:::bronze
+        B3["orders_bronze.bronze_orders"]:::bronze
+        B4["orders_bronze.bronze_order_items"]:::bronze
     end
 
-    subgraph SILVER["Silver — Typed + Clean"]
-        S1["silver_customers"]:::silver
-        S2["silver_products"]:::silver
-        S3["silver_orders"]:::silver
-        S4["silver_order_items"]:::silver
+    subgraph SILVER["Silver — Typed + Clean<br/>schema: orders_silver"]
+        S1["orders_silver.silver_customers"]:::silver
+        S2["orders_silver.silver_products"]:::silver
+        S3["orders_silver.silver_orders"]:::silver
+        S4["orders_silver.silver_order_items"]:::silver
     end
 
-    subgraph GOLD["Gold — Business Marts"]
+    subgraph GOLD["Gold — Business Marts<br/>schema: orders_gold"]
         direction TB
         subgraph DIMFACT["Dims + Atomic Fact"]
-            G1["gold_dim_customer"]:::gold
-            G2["gold_dim_product"]:::gold
-            G3["gold_fact_order_items"]:::gold
-            G4["gold_vw_order_status<br/>(derived)"]:::gold
+            G1["orders_gold.gold_dim_customer"]:::gold
+            G2["orders_gold.gold_dim_product"]:::gold
+            G3["orders_gold.gold_fact_order_items"]:::gold
+            G4["orders_gold.gold_vw_order_status<br/>(derived)"]:::gold
         end
         subgraph AGG["Pre-aggregated Sales Marts"]
-            A1["gold_product_daily_sales"]:::gold
-            A2["gold_product_weekly_sales"]:::gold
-            A3["gold_product_monthly_sales"]:::gold
+            A1["orders_gold.gold_product_daily_sales"]:::gold
+            A2["orders_gold.gold_product_weekly_sales"]:::gold
+            A3["orders_gold.gold_product_monthly_sales"]:::gold
         end
         G3 --> A1
         G3 --> A2

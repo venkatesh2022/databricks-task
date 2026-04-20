@@ -4,8 +4,10 @@
 -- Simulates files arriving from an OLTP source; we preserve exactly what landed.
 -- ============================================================================
 
-CREATE SCHEMA IF NOT EXISTS orders_demo;
-USE orders_demo;
+CREATE SCHEMA IF NOT EXISTS orders_bronze;
+CREATE SCHEMA IF NOT EXISTS orders_silver;
+CREATE SCHEMA IF NOT EXISTS orders_gold;
+USE orders_bronze;
 
 CREATE OR REPLACE TABLE bronze_customers (
     customer_id       STRING,

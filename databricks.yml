@@ -14,6 +14,15 @@ variables:
   cluster_id:
     description: Optional existing all-purpose or jobs cluster ID (skips job_cluster when set)
     default: ""
+  bronze_schema:
+    description: Bronze schema for raw landing tables
+    default: "orders_bronze"
+  silver_schema:
+    description: Silver schema for cleaned, typed tables
+    default: "orders_silver"
+  gold_schema:
+    description: Gold schema for marts and serving tables
+    default: "orders_gold"
 
 resources:
   jobs:
@@ -25,12 +34,22 @@ resources:
           job_cluster_key: shared
           spark_python_task:
             python_file: ./pipeline/run_silver_job.py
+            parameters:
+              - --bronze-schema
+              - ${var.bronze_schema}
+              - --silver-schema
+              - ${var.silver_schema}
         - task_key: gold_pyspark
           depends_on:
             - task_key: silver_pyspark
           job_cluster_key: shared
           spark_python_task:
             python_file: ./pipeline/run_gold_job.py
+            parameters:
+              - --silver-schema
+              - ${var.silver_schema}
+              - --gold-schema
+              - ${var.gold_schema}
 
       job_clusters:
         - job_cluster_key: shared

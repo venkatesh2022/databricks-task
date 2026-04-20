@@ -11,27 +11,36 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 
 VALID_LINE_STATUSES = ("PENDING", "SHIPPED", "DELIVERED", "CANCELLED", "RETURNED")
+DEFAULT_BRONZE_SCHEMA = "orders_bronze"
+DEFAULT_SILVER_SCHEMA = "orders_silver"
+DEFAULT_GOLD_SCHEMA = "orders_gold"
 
 
-def run_silver(spark: SparkSession, schema: str = "orders_demo") -> None:
+def run_silver(
+    spark: SparkSession,
+    bronze_schema: str = DEFAULT_BRONZE_SCHEMA,
+    silver_schema: str = DEFAULT_SILVER_SCHEMA,
+) -> None:
     """Typed, deduped Silver tables from Bronze via Delta MERGE (idempotent)."""
-    spark.sql(f"USE {schema}")
-
-    _silver_ddl(spark, schema)
-    _merge_silver_customers(spark, schema)
-    _merge_silver_products(spark, schema)
-    _merge_silver_orders(spark, schema)
-    _merge_silver_order_items(spark, schema)
+    _create_schema(spark, silver_schema)
+    _merge_silver_customers(spark, bronze_schema, silver_schema)
+    _merge_silver_products(spark, bronze_schema, silver_schema)
+    _merge_silver_orders(spark, bronze_schema, silver_schema)
+    _merge_silver_order_items(spark, bronze_schema, silver_schema)
 
 
-def run_gold(spark: SparkSession, schema: str = "orders_demo") -> None:
+def run_gold(
+    spark: SparkSession,
+    silver_schema: str = DEFAULT_SILVER_SCHEMA,
+    gold_schema: str = DEFAULT_GOLD_SCHEMA,
+) -> None:
     """Dims, fact, marts, and derived order-status view from Silver."""
-    spark.sql(f"USE {schema}")
+    _create_schema(spark, gold_schema)
 
-    sc = spark.table(f"{schema}.silver_customers")
-    sp = spark.table(f"{schema}.silver_products")
-    so = spark.table(f"{schema}.silver_orders")
-    oi = spark.table(f"{schema}.silver_order_items")
+    sc = spark.table(f"{silver_schema}.silver_customers")
+    sp = spark.table(f"{silver_schema}.silver_products")
+    so = spark.table(f"{silver_schema}.silver_orders")
+    oi = spark.table(f"{silver_schema}.silver_order_items")
 
     dim_customer = sc.select(
         "customer_id",
@@ -73,21 +82,21 @@ def run_gold(spark: SparkSession, schema: str = "orders_demo") -> None:
         )
     )
 
-    _overwrite_delta(fact, f"{schema}.gold_fact_order_items")
+    _overwrite_delta(fact, f"{gold_schema}.gold_fact_order_items")
 
     dim_customer.write.format("delta").mode("overwrite").option(
         "overwriteSchema", "true"
-    ).saveAsTable(f"{schema}.gold_dim_customer")
+    ).saveAsTable(f"{gold_schema}.gold_dim_customer")
 
     dim_product.write.format("delta").mode("overwrite").option(
         "overwriteSchema", "true"
-    ).saveAsTable(f"{schema}.gold_dim_product")
+    ).saveAsTable(f"{gold_schema}.gold_dim_product")
 
-    g = spark.table(f"{schema}.gold_fact_order_items")
+    g = spark.table(f"{gold_schema}.gold_fact_order_items")
 
-    _write_sales_marts(spark, schema, g)
+    _write_sales_marts(gold_schema, g)
 
-    _create_order_status_view(spark, schema, so, oi)
+    _create_order_status_view(spark, gold_schema, so, oi)
 
 
 def _overwrite_delta(df: DataFrame, full_table_name: str) -> None:
@@ -96,44 +105,22 @@ def _overwrite_delta(df: DataFrame, full_table_name: str) -> None:
     ).saveAsTable(full_table_name)
 
 
-def _silver_ddl(spark: SparkSession, schema: str) -> None:
+def _create_schema(spark: SparkSession, schema: str) -> None:
+    spark.sql(f"CREATE SCHEMA IF NOT EXISTS {schema}")
+
+
+def _merge_silver_customers(
+    spark: SparkSession, bronze_schema: str, silver_schema: str
+) -> None:
     spark.sql(
         f"""
-        CREATE OR REPLACE TABLE {schema}.silver_customers (
+        CREATE OR REPLACE TABLE {silver_schema}.silver_customers (
             customer_id BIGINT NOT NULL, first_name STRING, last_name STRING,
             email STRING NOT NULL, phone STRING, created_at TIMESTAMP, _updated_ts TIMESTAMP
         ) USING DELTA
         """
     )
-    spark.sql(
-        f"""
-        CREATE OR REPLACE TABLE {schema}.silver_products (
-            product_id BIGINT NOT NULL, sku STRING NOT NULL, product_name STRING,
-            category STRING, unit_price DECIMAL(10,2), created_at TIMESTAMP, _updated_ts TIMESTAMP
-        ) USING DELTA
-        """
-    )
-    spark.sql(
-        f"""
-        CREATE OR REPLACE TABLE {schema}.silver_orders (
-            order_id BIGINT NOT NULL, customer_id BIGINT NOT NULL,
-            order_date TIMESTAMP, shipping_address STRING, _updated_ts TIMESTAMP
-        ) USING DELTA
-        """
-    )
-    spark.sql(
-        f"""
-        CREATE OR REPLACE TABLE {schema}.silver_order_items (
-            order_item_id BIGINT NOT NULL, order_id BIGINT NOT NULL, product_id BIGINT NOT NULL,
-            quantity INT, unit_price DECIMAL(10,2), line_total DECIMAL(12,2),
-            line_status STRING, status_updated_at TIMESTAMP, _updated_ts TIMESTAMP
-        ) USING DELTA
-        """
-    )
-
-
-def _merge_silver_customers(spark: SparkSession, schema: str) -> None:
-    bc = spark.table(f"{schema}.bronze_customers").where(
+    bc = spark.table(f"{bronze_schema}.bronze_customers").where(
         F.col("customer_id").isNotNull() & F.col("email").isNotNull()
     )
     s = (
@@ -147,11 +134,27 @@ def _merge_silver_customers(spark: SparkSession, schema: str) -> None:
         )
         .agg(F.max("_ingest_ts").alias("_updated_ts"))
     )
-    _merge_into(spark, schema, "silver_customers", s, "t.customer_id = s.customer_id")
+    _merge_into(
+        spark,
+        silver_schema,
+        "silver_customers",
+        s,
+        "t.customer_id = s.customer_id",
+    )
 
 
-def _merge_silver_products(spark: SparkSession, schema: str) -> None:
-    bp = spark.table(f"{schema}.bronze_products").where(
+def _merge_silver_products(
+    spark: SparkSession, bronze_schema: str, silver_schema: str
+) -> None:
+    spark.sql(
+        f"""
+        CREATE OR REPLACE TABLE {silver_schema}.silver_products (
+            product_id BIGINT NOT NULL, sku STRING NOT NULL, product_name STRING,
+            category STRING, unit_price DECIMAL(10,2), created_at TIMESTAMP, _updated_ts TIMESTAMP
+        ) USING DELTA
+        """
+    )
+    bp = spark.table(f"{bronze_schema}.bronze_products").where(
         F.col("product_id").isNotNull() & F.col("sku").isNotNull()
     )
     s = (
@@ -165,12 +168,28 @@ def _merge_silver_products(spark: SparkSession, schema: str) -> None:
         )
         .agg(F.max("_ingest_ts").alias("_updated_ts"))
     )
-    _merge_into(spark, schema, "silver_products", s, "t.product_id = s.product_id")
+    _merge_into(
+        spark,
+        silver_schema,
+        "silver_products",
+        s,
+        "t.product_id = s.product_id",
+    )
 
 
-def _merge_silver_orders(spark: SparkSession, schema: str) -> None:
-    bo = spark.table(f"{schema}.bronze_orders").alias("o")
-    sc = spark.table(f"{schema}.silver_customers").alias("c")
+def _merge_silver_orders(
+    spark: SparkSession, bronze_schema: str, silver_schema: str
+) -> None:
+    spark.sql(
+        f"""
+        CREATE OR REPLACE TABLE {silver_schema}.silver_orders (
+            order_id BIGINT NOT NULL, customer_id BIGINT NOT NULL,
+            order_date TIMESTAMP, shipping_address STRING, _updated_ts TIMESTAMP
+        ) USING DELTA
+        """
+    )
+    bo = spark.table(f"{bronze_schema}.bronze_orders").alias("o")
+    sc = spark.table(f"{silver_schema}.silver_customers").alias("c")
     s = (
         bo.join(
             sc,
@@ -186,13 +205,24 @@ def _merge_silver_orders(spark: SparkSession, schema: str) -> None:
         )
         .agg(F.max(F.col("o._ingest_ts")).alias("_updated_ts"))
     )
-    _merge_into(spark, schema, "silver_orders", s, "t.order_id = s.order_id")
+    _merge_into(spark, silver_schema, "silver_orders", s, "t.order_id = s.order_id")
 
 
-def _merge_silver_order_items(spark: SparkSession, schema: str) -> None:
-    b = spark.table(f"{schema}.bronze_order_items").alias("oi")
-    so = spark.table(f"{schema}.silver_orders").alias("o")
-    sp = spark.table(f"{schema}.silver_products").alias("p")
+def _merge_silver_order_items(
+    spark: SparkSession, bronze_schema: str, silver_schema: str
+) -> None:
+    spark.sql(
+        f"""
+        CREATE OR REPLACE TABLE {silver_schema}.silver_order_items (
+            order_item_id BIGINT NOT NULL, order_id BIGINT NOT NULL, product_id BIGINT NOT NULL,
+            quantity INT, unit_price DECIMAL(10,2), line_total DECIMAL(12,2),
+            line_status STRING, status_updated_at TIMESTAMP, _updated_ts TIMESTAMP
+        ) USING DELTA
+        """
+    )
+    b = spark.table(f"{bronze_schema}.bronze_order_items").alias("oi")
+    so = spark.table(f"{silver_schema}.silver_orders").alias("o")
+    sp = spark.table(f"{silver_schema}.silver_products").alias("p")
 
     joined = (
         b.join(
@@ -247,7 +277,11 @@ def _merge_silver_order_items(spark: SparkSession, schema: str) -> None:
     )
 
     _merge_into(
-        spark, schema, "silver_order_items", s, "t.order_item_id = s.order_item_id"
+        spark,
+        silver_schema,
+        "silver_order_items",
+        s,
+        "t.order_item_id = s.order_item_id",
     )
 
 
@@ -277,7 +311,7 @@ def _status_sum(status: str):
     return F.sum(F.when(F.col("line_status") == status, F.col("quantity")).otherwise(0))
 
 
-def _write_sales_marts(spark: SparkSession, schema: str, f: DataFrame) -> None:
+def _write_sales_marts(schema: str, f: DataFrame) -> None:
     order_day = F.to_date("order_date")
     week_start = F.to_date(F.date_trunc("week", F.col("order_date")))
     month_start = F.to_date(F.date_trunc("month", F.col("order_date")))

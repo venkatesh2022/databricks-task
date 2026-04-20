@@ -5,10 +5,10 @@
 -- All Silver tables are idempotently MERGEd so re-running is safe.
 -- ============================================================================
 
-USE orders_demo;
+CREATE SCHEMA IF NOT EXISTS orders_silver;
 
 -- ---------- silver_customers ----------
-CREATE OR REPLACE TABLE silver_customers (
+CREATE OR REPLACE TABLE orders_silver.silver_customers (
     customer_id   BIGINT       NOT NULL,
     first_name    STRING,
     last_name     STRING,
@@ -18,7 +18,7 @@ CREATE OR REPLACE TABLE silver_customers (
     _updated_ts   TIMESTAMP
 ) USING DELTA;
 
-MERGE INTO silver_customers t
+MERGE INTO orders_silver.silver_customers t
 USING (
     SELECT
         CAST(customer_id AS BIGINT)                 AS customer_id,
@@ -28,7 +28,7 @@ USING (
         phone,
         CAST(created_at AS TIMESTAMP)               AS created_at,
         MAX(_ingest_ts)                             AS _updated_ts
-    FROM bronze_customers
+    FROM orders_bronze.bronze_customers
     WHERE customer_id IS NOT NULL
       AND email       IS NOT NULL
     GROUP BY customer_id, first_name, last_name, LOWER(TRIM(email)), phone, CAST(created_at AS TIMESTAMP)
@@ -38,7 +38,7 @@ WHEN MATCHED THEN UPDATE SET *
 WHEN NOT MATCHED THEN INSERT *;
 
 -- ---------- silver_products ----------
-CREATE OR REPLACE TABLE silver_products (
+CREATE OR REPLACE TABLE orders_silver.silver_products (
     product_id    BIGINT          NOT NULL,
     sku           STRING          NOT NULL,
     product_name  STRING,
@@ -48,7 +48,7 @@ CREATE OR REPLACE TABLE silver_products (
     _updated_ts   TIMESTAMP
 ) USING DELTA;
 
-MERGE INTO silver_products t
+MERGE INTO orders_silver.silver_products t
 USING (
     SELECT
         CAST(product_id AS BIGINT)          AS product_id,
@@ -58,7 +58,7 @@ USING (
         CAST(unit_price AS DECIMAL(10,2))   AS unit_price,
         CAST(created_at AS TIMESTAMP)       AS created_at,
         MAX(_ingest_ts)                     AS _updated_ts
-    FROM bronze_products
+    FROM orders_bronze.bronze_products
     WHERE product_id IS NOT NULL
       AND sku        IS NOT NULL
     GROUP BY product_id, UPPER(TRIM(sku)), product_name, category,
@@ -71,7 +71,7 @@ WHEN NOT MATCHED THEN INSERT *;
 -- ---------- silver_orders ----------
 -- FK check: customer must exist in silver_customers, else we drop (and could
 -- log to a quarantine table in production).
-CREATE OR REPLACE TABLE silver_orders (
+CREATE OR REPLACE TABLE orders_silver.silver_orders (
     order_id          BIGINT      NOT NULL,
     customer_id       BIGINT      NOT NULL,
     order_date        TIMESTAMP,
@@ -79,7 +79,7 @@ CREATE OR REPLACE TABLE silver_orders (
     _updated_ts       TIMESTAMP
 ) USING DELTA;
 
-MERGE INTO silver_orders t
+MERGE INTO orders_silver.silver_orders t
 USING (
     SELECT
         CAST(o.order_id AS BIGINT)          AS order_id,
@@ -87,8 +87,8 @@ USING (
         CAST(o.order_date AS TIMESTAMP)     AS order_date,
         o.shipping_address,
         MAX(o._ingest_ts)                   AS _updated_ts
-    FROM bronze_orders o
-    JOIN silver_customers c
+    FROM orders_bronze.bronze_orders o
+    JOIN orders_silver.silver_customers c
       ON CAST(o.customer_id AS BIGINT) = c.customer_id   -- FK enforce
     WHERE o.order_id IS NOT NULL
     GROUP BY CAST(o.order_id AS BIGINT), CAST(o.customer_id AS BIGINT),
@@ -100,7 +100,7 @@ WHEN NOT MATCHED THEN INSERT *;
 
 -- ---------- silver_order_items ----------
 -- line_total is computed here so downstream never has to.
-CREATE OR REPLACE TABLE silver_order_items (
+CREATE OR REPLACE TABLE orders_silver.silver_order_items (
     order_item_id       BIGINT           NOT NULL,
     order_id            BIGINT           NOT NULL,
     product_id          BIGINT           NOT NULL,
@@ -112,7 +112,7 @@ CREATE OR REPLACE TABLE silver_order_items (
     _updated_ts         TIMESTAMP
 ) USING DELTA;
 
-MERGE INTO silver_order_items t
+MERGE INTO orders_silver.silver_order_items t
 USING (
     SELECT
         CAST(oi.order_item_id AS BIGINT)                                          AS order_item_id,
@@ -124,9 +124,9 @@ USING (
         UPPER(TRIM(oi.line_status))                                               AS line_status,
         CAST(oi.status_updated_at AS TIMESTAMP)                                   AS status_updated_at,
         MAX(oi._ingest_ts)                                                        AS _updated_ts
-    FROM bronze_order_items oi
-    JOIN silver_orders   o ON CAST(oi.order_id   AS BIGINT) = o.order_id       -- FK to order
-    JOIN silver_products p ON CAST(oi.product_id AS BIGINT) = p.product_id     -- FK to product
+    FROM orders_bronze.bronze_order_items oi
+    JOIN orders_silver.silver_orders   o ON CAST(oi.order_id   AS BIGINT) = o.order_id       -- FK to order
+    JOIN orders_silver.silver_products p ON CAST(oi.product_id AS BIGINT) = p.product_id     -- FK to product
     WHERE oi.order_item_id IS NOT NULL
       AND UPPER(TRIM(oi.line_status)) IN ('PENDING','SHIPPED','DELIVERED','CANCELLED','RETURNED')
     GROUP BY oi.order_item_id, oi.order_id, oi.product_id,

@@ -7,7 +7,7 @@
 --   (Mechanical Keyboard, 16 units delivered in March).
 -- ============================================================================
 
-USE orders_demo;
+USE orders_bronze;
 
 TRUNCATE TABLE bronze_customers;
 TRUNCATE TABLE bronze_products;
@@ -15,7 +15,9 @@ TRUNCATE TABLE bronze_orders;
 TRUNCATE TABLE bronze_order_items;
 
 -- ---------- customers ----------
-INSERT INTO bronze_customers VALUES
+INSERT INTO bronze_customers (
+  customer_id, first_name, last_name, email, phone, created_at, _ingest_ts
+) VALUES
   ('1', 'Alice',  'Johnson', 'alice.j@example.com',      '+1-555-0101', '2025-11-03 09:12:00', current_timestamp()),
   ('2', 'Bob',    'Smith',   'bob.smith@example.com',    '+1-555-0102', '2025-11-14 10:44:00', current_timestamp()),
   ('3', 'Carol',  'Davis',   'carol.d@example.com',      '+1-555-0103', '2025-12-02 14:03:00', current_timestamp()),
@@ -26,7 +28,9 @@ INSERT INTO bronze_customers VALUES
   ('8', 'Henry',  'Patel',   'henry.p@example.com',      '+1-555-0108', '2026-02-15 15:48:00', current_timestamp());
 
 -- ---------- products ----------
-INSERT INTO bronze_products VALUES
+INSERT INTO bronze_products (
+  product_id, sku, product_name, category, unit_price, created_at, _ingest_ts
+) VALUES
   ('1',  'KB-MECH-01',  'Mechanical Keyboard',  'Electronics',  '129.99', '2025-10-01 00:00:00', current_timestamp()),
   ('2',  'MS-WRL-01',   'Wireless Mouse',       'Electronics',  '39.99',  '2025-10-01 00:00:00', current_timestamp()),
   ('3',  'HB-USBC-01',  'USB-C Hub',            'Electronics',  '49.99',  '2025-10-01 00:00:00', current_timestamp()),
@@ -39,7 +43,9 @@ INSERT INTO bronze_products VALUES
   ('10', 'MA-DUAL-01',  'Monitor Arm',          'Accessories',  '89.99',  '2025-10-01 00:00:00', current_timestamp());
 
 -- ---------- orders ----------
-INSERT INTO bronze_orders VALUES
+INSERT INTO bronze_orders (
+  order_id, customer_id, order_date, shipping_address, _ingest_ts
+) VALUES
   -- February 2026 (5 orders)
   ('1',  '1', '2026-02-05 09:00:00', '12 Oak St, Seattle WA',      current_timestamp()),
   ('2',  '2', '2026-02-10 10:30:00', '44 Maple Ave, Portland OR',  current_timestamp()),
@@ -71,7 +77,10 @@ INSERT INTO bronze_orders VALUES
 
 -- ---------- order_items ----------
 -- Status values: PENDING, SHIPPED, DELIVERED, CANCELLED, RETURNED
-INSERT INTO bronze_order_items VALUES
+INSERT INTO bronze_order_items (
+  order_item_id, order_id, product_id, quantity, unit_price,
+  line_status, status_updated_at, _ingest_ts
+) VALUES
   -- Order 1 (Feb 5, Alice)
   ('1',  '1',  '1',  '1', '129.99', 'DELIVERED', '2026-02-09 15:00:00', current_timestamp()),
   ('2',  '1',  '4',  '1', '59.99',  'DELIVERED', '2026-02-09 15:00:00', current_timestamp()),

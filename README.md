@@ -40,8 +40,8 @@ thota/
 2. Add the repo (or upload the whole project folder, not only the `.ipynb`).
 3. Attach to a running cluster (classic Spark 3.x+ with Delta; Community Edition does not support serverless for Python notebooks in all cases).
 4. **Run All**. The notebook will:
-   - create schema `orders_demo`
-   - build **Bronze** with SQL, then **Silver** and **Gold** with **PySpark** (`pipeline/transforms.py`)
+   - create schemas `orders_bronze`, `orders_silver`, and `orders_gold`
+   - build **Bronze** in `orders_bronze`, then **Silver** and **Gold** with **PySpark** (`pipeline/transforms.py`)
    - seed demo data
    - run the "most sold product" queries and print results
 
@@ -49,7 +49,7 @@ Silver/Gold are idempotent (`CREATE OR REPLACE` / `MERGE` / overwrite facts) —
 
 ### Workflow / Lakeflow Job (optional)
 
-`databricks.yml` defines a two-task Job: `run_silver_job.py` then `run_gold_job.py`. **Bronze must already exist** (run the notebook through the seed cells, or your own ingest). Deploy with the Databricks CLI:
+`databricks.yml` defines a two-task Job: `run_silver_job.py` then `run_gold_job.py`. **Bronze must already exist in `orders_bronze`** (run the notebook through the seed cells, or your own ingest). Deploy with the Databricks CLI:
 
 ```bash
 databricks bundle deploy
@@ -57,6 +57,7 @@ databricks bundle run orders_medallion
 ```
 
 Adjust `node_type_id` / `spark_version` for your workspace, or attach an `existing_cluster_id` in the Job UI after import.
+The bundle also exposes `bronze_schema`, `silver_schema`, and `gold_schema` variables if you want different medallion schema names per target.
 
 ## Demo dataset
 
