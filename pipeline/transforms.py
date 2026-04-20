@@ -97,7 +97,7 @@ def run_gold(
 
     _write_sales_marts(gold_schema, g)
 
-    _create_order_status_view(spark, gold_schema, so, oi)
+    _create_order_status_view(spark, silver_schema, gold_schema)
 
 
 def _overwrite_delta(df: DataFrame, full_table_name: str) -> None:
@@ -357,58 +357,34 @@ def _write_sales_marts(schema: str, f: DataFrame) -> None:
 
 
 def _create_order_status_view(
-    spark: SparkSession, schema: str, so: DataFrame, oi: DataFrame
+    spark: SparkSession, silver_schema: str, gold_schema: str
 ) -> None:
-    j = so.join(oi, "order_id")
-    delivered = F.when(F.col("line_status") == "DELIVERED", 1).otherwise(0)
-    shipped = F.when(F.col("line_status") == "SHIPPED", 1).otherwise(0)
-    pending = F.when(F.col("line_status") == "PENDING", 1).otherwise(0)
-    cancelled = F.when(F.col("line_status") == "CANCELLED", 1).otherwise(0)
-    returned = F.when(F.col("line_status") == "RETURNED", 1).otherwise(0)
-    ship_or_del = F.when(
-        F.col("line_status").isin("SHIPPED", "DELIVERED"), 1
-    ).otherwise(0)
-
-    agg = j.groupBy("order_id", "customer_id", "order_date").agg(
-        F.count("*").alias("total_line_items"),
-        F.sum(delivered).alias("delivered_count"),
-        F.sum(shipped).alias("shipped_count"),
-        F.sum(pending).alias("pending_count"),
-        F.sum(cancelled).alias("cancelled_count"),
-        F.sum(returned).alias("returned_count"),
-        F.sum(ship_or_del).alias("_ship_del_lines"),
-    )
-
-    vw = agg.select(
-        "order_id",
-        "customer_id",
-        "order_date",
-        "total_line_items",
-        "delivered_count",
-        "shipped_count",
-        "pending_count",
-        "cancelled_count",
-        "returned_count",
-        F.when(
-            F.col("delivered_count") == F.col("total_line_items"), F.lit("COMPLETED")
-        )
-        .when(
-            F.col("cancelled_count") == F.col("total_line_items"),
-            F.lit("CANCELLED"),
-        )
-        .when(F.col("_ship_del_lines") > 0, F.lit("PARTIALLY_SHIPPED"))
-        .when(
-            F.col("pending_count") == F.col("total_line_items"), F.lit("PENDING")
-        )
-        .otherwise(F.lit("IN_PROGRESS"))
-        .alias("order_status"),
-    )
-
-    vw.createOrReplaceTempView("_tmp_gold_vw_order_status")
     spark.sql(
         f"""
-        CREATE OR REPLACE VIEW {schema}.gold_vw_order_status AS
-        SELECT * FROM _tmp_gold_vw_order_status
+        CREATE OR REPLACE VIEW {gold_schema}.gold_vw_order_status AS
+        SELECT
+            o.order_id,
+            o.customer_id,
+            o.order_date,
+            COUNT(*) AS total_line_items,
+            SUM(CASE WHEN oi.line_status = 'DELIVERED' THEN 1 ELSE 0 END) AS delivered_count,
+            SUM(CASE WHEN oi.line_status = 'SHIPPED' THEN 1 ELSE 0 END) AS shipped_count,
+            SUM(CASE WHEN oi.line_status = 'PENDING' THEN 1 ELSE 0 END) AS pending_count,
+            SUM(CASE WHEN oi.line_status = 'CANCELLED' THEN 1 ELSE 0 END) AS cancelled_count,
+            SUM(CASE WHEN oi.line_status = 'RETURNED' THEN 1 ELSE 0 END) AS returned_count,
+            CASE
+                WHEN SUM(CASE WHEN oi.line_status = 'DELIVERED' THEN 1 ELSE 0 END) = COUNT(*)
+                    THEN 'COMPLETED'
+                WHEN SUM(CASE WHEN oi.line_status = 'CANCELLED' THEN 1 ELSE 0 END) = COUNT(*)
+                    THEN 'CANCELLED'
+                WHEN SUM(CASE WHEN oi.line_status IN ('SHIPPED', 'DELIVERED') THEN 1 ELSE 0 END) > 0
+                    THEN 'PARTIALLY_SHIPPED'
+                WHEN SUM(CASE WHEN oi.line_status = 'PENDING' THEN 1 ELSE 0 END) = COUNT(*)
+                    THEN 'PENDING'
+                ELSE 'IN_PROGRESS'
+            END AS order_status
+        FROM {silver_schema}.silver_orders o
+        JOIN {silver_schema}.silver_order_items oi USING (order_id)
+        GROUP BY o.order_id, o.customer_id, o.order_date
         """
     )
-    spark.catalog.dropTempView("_tmp_gold_vw_order_status")
